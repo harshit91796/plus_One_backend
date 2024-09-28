@@ -6,7 +6,7 @@ exports.sendMessageRequest = async (req, res) => {
     try {
         const { receiverId, postId, message } = req.body;
         const senderId = req.user._id;
-
+         console.log(receiverId, postId, message);
         // Check if the receiver is already in the sender's following list
         const sender = await User.findById(senderId);
         if (sender.following.includes(receiverId) && sender.followers.includes(receiverId) && !sender.blocked.includes(receiverId) && !receiver.blocked.includes(senderId)) {
@@ -15,14 +15,17 @@ exports.sendMessageRequest = async (req, res) => {
                 users: [senderId, receiverId],
                 isTemporary: false,
             });
-
-            const newMessage = await Message.create({
-                sender: senderId,
-                content: message,
-                chat: chat._id,
-            });
-
-            chat.messages.push(newMessage);
+            
+            if(message){
+                const newMessage = await Message.create({
+                    sender: senderId,
+                    content: message ,
+                    chat: chat._id,
+                });
+    
+                chat.messages.push(newMessage);
+            }
+            
             await chat.save();
 
             return res.status(200).json({ chat, message: newMessage });
@@ -33,16 +36,22 @@ exports.sendMessageRequest = async (req, res) => {
             users: [senderId, receiverId],
             isTemporary: true,
             postId: postId || null,
+
         });
 
-        const newMessage = await Message.create({
-            sender: senderId,
-            content: message,
-            chat: tempChat._id,
-        });
+        if(message !== undefined){
+            const newMessage = await Message.create({
+                sender: senderId,
+                content: message,
+                chat: tempChat._id,
+            });
+            tempChat.messages.push(newMessage);
+            tempChat.latestMessage = newMessage._id;
+            
+        }
 
-        tempChat.messages.push(newMessage);
-        await tempChat.save();
+        
+        
 
         const messageRequest = await MessageRequest.create({
             sender: senderId,
@@ -51,7 +60,17 @@ exports.sendMessageRequest = async (req, res) => {
             chat: tempChat._id,
         });
 
-        res.status(200).json({ messageRequest, tempChat, message: newMessage });
+        tempChat.messageRequests = messageRequest._id;
+        await tempChat.save();
+
+        if(postId){
+            await User.findByIdAndUpdate(senderId, { $push: { messageRequestsSent: postId } });
+            await Post.findByIdAndUpdate(postId, { $push: { requests: { user: senderId, status: 'pending' } } });
+        }
+
+        console.log('tempChat', tempChat);
+
+        res.status(200).json({ chat: tempChat });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
@@ -75,23 +94,44 @@ exports.handleMessageRequest = async (req, res) => {
             messageRequest.status = 'accepted';
             await messageRequest.save();
 
-            const chat = await Chat.findById(messageRequest.chat);
+            let chat = await Chat.findById(messageRequest.chat);
+            let post = await Post.findById(messageRequest.postId);
             chat.isTemporary = false;
-            if (messageRequest.postId) {
-                chat.isGroupChat = true;
-                chat.groupAdmin = userId;
+            if (messageRequest.postId === null) {
+                 chat.isTemporary = false;
+                 await chat.save();
+                 return res.status(200).json({ message: 'Message request accepted', chat });
             }
-            await chat.save();
+            
 
             // If it's a post-related request, add the sender to the post's group chat
             if (messageRequest.postId) {
                 // Implement logic to add user to the post's group chat
-                const post = await Post.findById(messageRequest.postId);
-                post.groupChat.push(userId);
-                await post.save();
+                if(!post.groupChatId ){
+                     let groupChat = await Chat.create({
+                        chatName: post.title,
+                        users: [messageRequest.sender, messageRequest.receiver],
+                        isTemporary: false,
+                        postId: post._id,
+                        isGroupChat: true,
+                       })
+                       post.groupChat.push(messageRequest.sender,messageRequest.receiver);
+                       post.groupChatId = groupChat._id;
+                       await post.save();
+
+                       return res.status(200).json({ message: 'Message request accepted', chat: groupChat });
+                }
+                else{
+                    let groupChat = await Chat.findById(post.groupChatId);
+                    groupChat.users.push(messageRequest.sender);
+                    await groupChat.save();
+                    post.groupChat.push(messageRequest.sender);
+                    await post.save();
+                    return res.status(200).json({ message: 'Message request accepted', chat: groupChat });
+                }
             }
 
-            res.status(200).json({ message: 'Message request accepted', chat });
+            
         } else if (action === 'reject') {
             messageRequest.status = 'rejected';
             await messageRequest.save();
@@ -116,6 +156,16 @@ exports.getMessageRequests = async (req, res) => {
             .populate('postId', 'title');
 
         res.status(200).json(messageRequests);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
+exports.getMessageRequest = async (req, res) => {
+    try {
+        const requestId = req.body.requestId;
+        const messageRequest = await MessageRequest.findById(requestId);
+        res.status(200).json( { success: true, messageRequest, message: 'Message request fetched successfully'});
     } catch (error) {
         res.status(400).json({ error: error.message });
     }

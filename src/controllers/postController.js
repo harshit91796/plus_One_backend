@@ -19,22 +19,28 @@ const testObjectIdConversion = (testId) => {
 
 const createPost = async (req, res) => {
     console.log('hiii');
-    const { title, description, location, date, peopleNeeded } = req.body;
+    const { title, description, location, coordinates, date,image, peopleNeeded } = req.body;
 
-    // Validate required fields
-    if (!title || !description || !location || !date || !peopleNeeded) {
-        return res.status(400).json({ error: 'All fields are required' });
-    }
+   // Validate required fields
+   if (!title || !description || !location || !coordinates || !date || !peopleNeeded) {
+    return res.status(400).json({ error: 'All fields are required' });
+}
 
-    try {
-        const post = new Post({
-            user: req.user._id,
-            title,
-            description,
-            location,
-            date ,
-            peopleNeeded,
-        });
+try {
+    const post = new Post({
+        user: req.user._id,
+        title,
+        description,
+        location: {
+            type: 'Point',
+            coordinates: coordinates,
+            formatted: location
+        },
+        date,
+        image ,
+        peopleNeeded,
+    });
+
 
         await post.save();
 
@@ -194,7 +200,8 @@ const getAllPosts = async (req, res) => {
         console.log('query',query);
 
         const posts = await Post.find(query)
-            .populate('user', 'name') // Populate user details
+            .populate('user')
+            .populate('user', 'name profilePic') // Populate user details
             .sort({ createdAt: -1 }); // Sort by most recent first
             console.log('posts',posts);
             // const filter = posts.filter((post) => post.user.name == 'sofiya');

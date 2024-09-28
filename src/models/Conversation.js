@@ -8,7 +8,14 @@ const MessageSchema = new mongoose.Schema({
     },
     content: {
         type: String,
-        required: true,
+    },
+    contentType: {
+        type: String,
+        enum: ['text', 'image', 'video', 'audio'],
+        default: 'text',
+    },
+    mediaUrl: {
+        type: String,
     },
     createdAt: {
         type: Date,
@@ -48,6 +55,26 @@ const ChatSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
     },
+    image: [
+        {
+            type: String,
+        }
+    ],
+    video: [
+        {
+            type: String,
+        }
+    ],
+    audio: [
+        {
+            type: String,
+        }
+    ],
+    file: [
+        {
+            type: String,
+        }
+    ],
     messages: [MessageSchema],
     createdAt: {
         type: Date,
@@ -56,6 +83,10 @@ const ChatSchema = new mongoose.Schema({
     isTemporary: {
         type: Boolean,
         default: false,
+    },
+    messageRequests: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Chat',
     },
 });
 

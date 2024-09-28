@@ -9,11 +9,12 @@ const messageRequestController = require('../controllers/messageRequestControlle
 router.post('/accessChat', protect, accessChat);
 router.post('/group', protect, createGroupChat);
 router.post('/message', protect, sendMessage);
-router.get('/getMessages/:chatId', getMessages);
+router.get('/getMessages/:chatId',protect, getMessages);
 router.get('/getChats', protect, getChats);
 
 router.post('/send-message-request', protect, messageRequestController.sendMessageRequest);
 router.post('/handle-message-request', protect, messageRequestController.handleMessageRequest);
 router.get('/message-requests', protect, messageRequestController.getMessageRequests);
+router.post('/message-request', protect, messageRequestController.getMessageRequest);
 
 module.exports = router;

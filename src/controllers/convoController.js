@@ -60,17 +60,21 @@ const createGroupChat = async (req, res) => {
 };
 
 const sendMessage = async (req, res) => {
-    const { content, chatId } = req.body;
+    const { content, chatId , contentType , mediaUrl} = req.body;
 
-    if (!content || !chatId) {
+    console.log(content , chatId , contentType , mediaUrl);
+
+    if (!chatId || (!content && !mediaUrl)) {
         return res.status(400).json({ error: 'Please provide content and chat ID' });
     }
 
     try {
         const newMessage = await Message.create({
             sender: req.user._id,
-            content,
+            content : content || null,
             chat: chatId,
+            contentType: contentType || 'text',
+            mediaUrl: mediaUrl || null,
         });
 
         const chat = await Chat.findById(chatId).populate('users', 'name email');
@@ -79,6 +83,8 @@ const sendMessage = async (req, res) => {
             _id: newMessage._id,
             sender: req.user,
             content: newMessage.content,
+            contentType: newMessage.contentType,
+            mediaUrl: newMessage.mediaUrl,
             chat: {
                 _id: chat._id,
                 chatName: chat.chatName,
@@ -109,7 +115,7 @@ const getChats = async (req, res) => {
 
         const fullChats = await User.populate(chats, {
             path: 'latestMessage.sender',
-            select: 'name email',
+            select: 'name email profilePic',
         });
 
         res.status(200).json(fullChats);
@@ -123,11 +129,21 @@ const getChats = async (req, res) => {
 const getMessages = async (req, res) => {
     try {
         const { chatId } = req.params;
-        const messages = await Message.find({ chat: chatId }).populate('sender', 'name email').populate('chat');
-        res.status(200).json(messages);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Server error', details: err.message });
+
+        // Find the chat by ID to ensure it exists
+        const chat = await Chat.findById(chatId).populate('users', 'name email profilePic');
+        if (!chat) {
+            return res.status(404).json({ error: 'Chat not found' });
+        }
+
+        // Find all messages for the chat and populate sender information
+        const messages = await Message.find({ chat: chatId })
+            .populate('sender', 'name email profilePic')
+            .sort({ createdAt: 1 }); // Sort messages by creation date
+
+        res.status(200).json({ chat, messages });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
     }
 };
 

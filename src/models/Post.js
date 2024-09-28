@@ -16,8 +16,9 @@ const PostSchema = new mongoose.Schema({
         required: true,
     },
     location: {
-        type: String,
-        required: true,
+        type: {type: String, enum: ['Point'], default: 'Point'},
+        coordinates: {type: [Number], required: true},
+        formatted: {type: String, required: true}
     },
     date: {
         type: String,
@@ -43,6 +44,10 @@ const PostSchema = new mongoose.Schema({
             ref: 'User',
         },
     ],
+    groupChatId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Chat',
+    },
     createdAt: {
         type: Date,
         default: Date.now,

@@ -31,6 +31,10 @@ const UserSchema = new mongoose.Schema({
         type: String,
         // required: true,
     },
+    profilePic: {
+        type: String,
+        default: '',
+    },
     followers: {
         type: Array,
         default: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
@@ -38,6 +42,14 @@ const UserSchema = new mongoose.Schema({
     following: {
         type: Array,
         default: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    },
+    messageRequestsSent: {
+        type: Array,
+        default: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MessageRequest' }],
+    },
+    messageRequestsReceived: {
+        type: Array,
+        default: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MessageRequest' }],
     },
     isAdmin: {
         type: Boolean,
