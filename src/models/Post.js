@@ -16,17 +16,48 @@ const PostSchema = new mongoose.Schema({
         required: true,
     },
     location: {
-        type: {type: String, enum: ['Point'], default: 'Point'},
-        coordinates: {type: [Number], required: true},
-        formatted: {type: String, required: true}
+        type: {
+            type: String,
+            enum: ['Point'],
+            required: true
+        },
+        coordinates: [Number], // This should be an array of numbers, not objects
+        formatted: String
     },
+    checkpoints : [],
+    
     date: {
         type: String,
         required: true,
     },
+    startTime: {
+        type: String,
+        // required: true,
+    },
+    endTime: {
+        type: String,
+        // required: true,
+    },
     peopleNeeded: {
         type: Number,
         required: true,
+    },
+    maleNeeded: {
+        type: Number,
+        // required: true,
+    },
+    femaleNeeded: {
+        type: Number,
+        // required: true,
+    },
+    budget: {
+        tier: String,
+        min: Number,
+        max: Number,
+    },
+    transport: {
+        type: String,
+        enum: ['car','bike','flight',"publictransport","hitchhike"],
     },
     public: {
         type: Boolean,
@@ -52,7 +83,10 @@ const PostSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
-});
+}, { timestamps: true });
+
+// Add a 2dsphere index for geospatial queries
+PostSchema.index({ "location": "2dsphere" });
 
 const Post = mongoose.model('Post', PostSchema);
 

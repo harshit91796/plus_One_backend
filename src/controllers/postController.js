@@ -18,32 +18,23 @@ const testObjectIdConversion = (testId) => {
 };
 
 const createPost = async (req, res) => {
-    console.log('hiii');
-    const { title, description, location, coordinates, date,image, peopleNeeded } = req.body;
+    const { title, description, location, date, peopleNeeded } = req.body;
 
-   // Validate required fields
-   if (!title || !description || !location || !coordinates || !date || !peopleNeeded) {
-    return res.status(400).json({ error: 'All fields are required' });
-}
+    // Validate required fields
+    if (!title || !description || !location || !date || !peopleNeeded) {
+        return res.status(400).json({ error: 'All fields are required' });
+    }
 
-try {
-    const post = new Post({
-        user: req.user._id,
-        title,
-        description,
-        location: {
-            type: 'Point',
-            coordinates: coordinates,
-            formatted: location
-        },
-        date,
-        image ,
-        peopleNeeded,
-    });
-
+    try {
+        // Ensure coordinates are numbers
+        // const [longitude, latitude] = coordinates.map(coord => Number(coord));
+        
+        const post = new Post({
+            user: req.user._id,
+            ...req.body
+        });
 
         await post.save();
-
         res.status(201).json({ success: true, post });
     } catch (err) {
         console.error(err);
@@ -230,5 +221,185 @@ const getRequests = async (req, res) => {
     }
 };
 
+//Bhopal Airport, CTD road, Bairagarh, Bhopal - 462001, Madhya Pradesh, India ,77.3294218, 23.2906459
+const searchPosts = async (req, res) => {
+    try {
+        const { 
+            query,
+            currentLatitude,
+            currentLongitude,
+            range , // 10km default range
+            limit = limit ? limit : 4,
+            skip = skip ? skip : 0
+        } = req.query;
 
-module.exports = { createPost ,requestToJoinPost ,handleRequest ,getAllPosts };
+        // Log input parameters
+        console.log('Search Parameters:', {
+            query,
+            currentLatitude,
+            currentLongitude,
+            range,
+            limit,
+            skip
+        });
+
+        // Validate coordinates if provided
+        let validCoordinates = false;
+        if (currentLatitude && currentLongitude) {
+            const lat = parseFloat(currentLatitude);
+            const lng = parseFloat(currentLongitude);
+            validCoordinates = !isNaN(lat) && !isNaN(lng) && 
+                             lat >= -90 && lat <= 90 && 
+                             lng >= -180 && lng <= 180;
+
+            console.log('Coordinates validation:', {
+                validCoordinates,
+                parsedLat: lat,
+                parsedLng: lng
+            });
+        }
+
+        const aggregationPipeline = [];
+
+        // Add geoNear stage if coordinates are valid
+        if (validCoordinates) {
+            const geoNearStage = {
+                $geoNear: {
+                    near: {
+                        type: 'Point',
+                        coordinates: [
+                            parseFloat(currentLongitude),
+                            parseFloat(currentLatitude)
+                        ]
+                    },
+                    distanceField: 'distance',
+                    maxDistance: parseInt(range ? range : 10000),
+                    spherical: true,
+                    distanceMultiplier: 0.001 // Convert distance to kilometers
+                }
+            };
+            
+            console.log('GeoNear stage:', JSON.stringify(geoNearStage, null, 2));
+            aggregationPipeline.push(geoNearStage);
+        }
+
+        // Add title search if query is provided
+        if (query) {
+            aggregationPipeline.push({
+                $match: {
+                    $or: [
+                        { title: { $regex: query, $options: 'i' } },
+                        { 'checkpoints': { $regex: query, $options: 'i' } },
+                        { 'location.formatted': { $regex: query, $options: 'i' } }
+                    ]
+                }
+            });
+        }
+
+        // Add sorting if no geospatial query (geospatial queries handle their own sorting)
+        if (!validCoordinates) {
+            aggregationPipeline.push({
+                $sort: { createdAt: -1 }
+            });
+        }
+
+        // Add pagination
+        aggregationPipeline.push(
+            { $skip: parseInt(skip) },
+            { $limit: parseInt(limit) }
+        );
+
+        // Add user lookup
+        aggregationPipeline.push({
+            $lookup: {
+                from: 'users',
+                localField: 'user',
+                foreignField: '_id',
+                as: 'user'
+            }
+        });
+
+        // Unwind user array
+        aggregationPipeline.push({
+            $unwind: '$user'
+        });
+
+        // Project fields
+        aggregationPipeline.push({
+            $project: {
+                title: 1,
+                description: 1,
+                location: 1,
+                date: 1,
+                image: 1,
+                peopleNeeded: 1,
+                maleNeeded: 1,
+                femaleNeeded: 1,
+                budget: 1,
+                checkpoints: 1,
+                startTime: 1,
+                endTime: 1,
+                public: 1,
+                groupChat: 1,
+                requests: 1,
+                createdAt: 1,
+                distance: 1,
+                'user._id': 1,
+                'user.name': 1,
+                'user.profilePic': 1
+            }
+        });
+
+        // Log final pipeline
+        console.log('Final Aggregation Pipeline:', JSON.stringify(aggregationPipeline, null, 2));
+
+        // Verify index exists
+        const indexes = await Post.collection.getIndexes();
+        console.log('Collection indexes:', indexes);
+
+        // Execute aggregation
+        const posts = await Post.aggregate(aggregationPipeline);
+        console.log(`Found ${posts.length} posts`);
+
+        // Sample first post for debugging
+        if (posts.length > 0) {
+            console.log('Sample post:', JSON.stringify(posts[0], null, 2));
+        }
+
+        // Get total count
+        const countPipeline = [...aggregationPipeline];
+        countPipeline.splice(-4); // Remove last 4 stages
+        countPipeline.push({ $count: 'total' });
+        const totalDocs = await Post.aggregate(countPipeline);
+        const total = totalDocs.length > 0 ? totalDocs[0].total : 0;
+
+        res.status(200).json({
+            success: true,
+            data: {
+                posts,
+                total,
+                hasMore: total > (parseInt(skip) + posts.length),
+                searchParams: {
+                    coordinates: validCoordinates ? {
+                        lat: parseFloat(currentLatitude),
+                        lng: parseFloat(currentLongitude)
+                    } : null,
+                    range: parseInt(range),
+                    query
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Search error:', error);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({
+            success: false,
+            error: 'Error searching posts',
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+};
+
+module.exports = { createPost ,requestToJoinPost ,handleRequest ,getAllPosts ,searchPosts };
