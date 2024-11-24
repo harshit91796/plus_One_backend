@@ -51,10 +51,10 @@ const ChatSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Message',
     },
-    groupAdmin: {
+    groupAdmin: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-    },
+    }],
     image: [
         {
             type: String,

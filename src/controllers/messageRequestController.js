@@ -114,6 +114,7 @@ exports.handleMessageRequest = async (req, res) => {
                         isTemporary: false,
                         postId: post._id,
                         isGroupChat: true,
+                        groupAdmin: [req.user._id],
                        })
                        post.groupChat.push(messageRequest.sender,messageRequest.receiver);
                        post.groupChatId = groupChat._id;

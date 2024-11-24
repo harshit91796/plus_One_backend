@@ -324,7 +324,17 @@ const searchPosts = async (req, res) => {
             $unwind: '$user'
         });
 
-        // Project fields
+        // Add this lookup stage before the project stage
+        aggregationPipeline.push({
+            $lookup: {
+                from: 'users',
+                localField: 'groupChat',
+                foreignField: '_id',
+                as: 'groupChatUsers'
+            }
+        });
+
+        // Then modify the project stage
         aggregationPipeline.push({
             $project: {
                 title: 1,
@@ -346,7 +356,71 @@ const searchPosts = async (req, res) => {
                 distance: 1,
                 'user._id': 1,
                 'user.name': 1,
-                'user.profilePic': 1
+                'user.profilePic': 1,
+                joinedCounts: {
+                    total: { $size: "$groupChat" },
+                    male: {
+                        $size: {
+                            $filter: {
+                                input: "$groupChatUsers",  // Use the looked-up users
+                                as: "user",
+                                cond: { $eq: ["$$user.gender", "male"] }
+                            }
+                        }
+                    },
+                    female: {
+                        $size: {
+                            $filter: {
+                                input: "$groupChatUsers",  // Use the looked-up users
+                                as: "user",
+                                cond: { $eq: ["$$user.gender", "female"] }
+                            }
+                        }
+                    },
+                    remainingSpots: { 
+                        $subtract: ["$peopleNeeded", { $size: "$groupChat" }] 
+                    },
+                    remainingMale: {
+                        $cond: {
+                            if: { $gt: ["$maleNeeded", null] },
+                            then: {
+                                $subtract: [
+                                    "$maleNeeded",
+                                    {
+                                        $size: {
+                                            $filter: {
+                                                input: "$groupChatUsers",  // Use the looked-up users
+                                                as: "user",
+                                                cond: { $eq: ["$$user.gender", "male"] }
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            else: null
+                        }
+                    },
+                    remainingFemale: {
+                        $cond: {
+                            if: { $gt: ["$femaleNeeded", null] },
+                            then: {
+                                $subtract: [
+                                    "$femaleNeeded",
+                                    {
+                                        $size: {
+                                            $filter: {
+                                                input: "$groupChatUsers",  // Use the looked-up users
+                                                as: "user",
+                                                cond: { $eq: ["$$user.gender", "female"] }
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            else: null
+                        }
+                    }
+                }
             }
         });
 

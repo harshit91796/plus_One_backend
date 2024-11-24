@@ -2,7 +2,7 @@ const express = require('express');
 
 const router = express.Router();
 
-const { accessChat, createGroupChat, sendMessage, getMessages, getChats } = require('../controllers/convoController');
+const { accessChat, createGroupChat, sendMessage, getMessages, getChats, getChatDetails } = require('../controllers/convoController');
 const { protect } = require('../middlewares/authMiddleware');
 const messageRequestController = require('../controllers/messageRequestController');
 
@@ -16,5 +16,5 @@ router.post('/send-message-request', protect, messageRequestController.sendMessa
 router.post('/handle-message-request', protect, messageRequestController.handleMessageRequest);
 router.get('/message-requests', protect, messageRequestController.getMessageRequests);
 router.post('/message-request', protect, messageRequestController.getMessageRequest);
-
+router.get('/chat-details/:chatId', getChatDetails);
 module.exports = router;
