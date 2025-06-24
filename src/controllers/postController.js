@@ -17,6 +17,16 @@ const testObjectIdConversion = (testId) => {
 
 };
 
+const extractHashtags = (text) => {
+    const regex = /#(\w+)/g;
+    const tags = [];
+    let match;
+    while ((match = regex.exec(text))) {
+        tags.push(match[1].toLowerCase()); // store lowercase for case-insensitive search
+    }
+    return tags;
+};
+
 const createPost = async (req, res) => {
     const { title, description, location, date, peopleNeeded } = req.body;
 
@@ -28,10 +38,17 @@ const createPost = async (req, res) => {
     try {
         // Ensure coordinates are numbers
         // const [longitude, latitude] = coordinates.map(coord => Number(coord));
+
+        const hashtags = [
+            ...extractHashtags(title),
+            ...extractHashtags(description),
+        ];
         
         const post = new Post({
             user: req.user._id,
-            ...req.body
+            ...req.body,
+            hashtags
+
         });
 
         await post.save();
@@ -41,6 +58,36 @@ const createPost = async (req, res) => {
         res.status(500).json({ error: 'Failed to create post', details: err.message });
     }
 };
+
+// GET /hashtags/suggest?query=foo
+const getHashtagSuggestions = async (req, res) => {
+    try {
+      const query = req.query.query || '';
+      if (!query) return res.status(400).json({ error: 'Query required' });
+  
+      const suggestions = await Post.aggregate([
+        { $unwind: '$hashtags' },
+        {
+          $match: {
+            hashtags: { $regex: '^' + query, $options: 'i' } // case-insensitive startsWith
+          }
+        },
+        {
+          $group: {
+            _id: '$hashtags',
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } },
+        { $limit: 10 }
+      ]);
+  
+      res.status(200).json(suggestions.map(tag => tag._id));
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  };
+  
 
 const requestToJoinPost = async (req, res) => {
     const postId = req.params.id;
@@ -226,16 +273,32 @@ const searchPosts = async (req, res) => {
     try {
         const { 
             query,
+            selectedHashtag,
             currentLatitude,
             currentLongitude,
             range , // 10km default range
-            limit = limit ? limit : 4,
-            skip = skip ? skip : 0
+            // limit = limit ? limit : 4,
+            // skip = skip ? skip : 0
         } = req.query;
+
+         // IMPORTANT: Initialize limit and skip with default values first
+    let limit = 10; // Default limit
+    let skip = 0;   // Default skip
+    
+    
+    // Then update them if provided in the query
+    if (req.query.limit) {
+      limit = parseInt(req.query.limit);
+    }
+    
+    if (req.query.skip) {
+      skip = parseInt(req.query.skip);
+    }
 
         // Log input parameters
         console.log('Search Parameters:', {
             query,
+            selectedHashtag,
             currentLatitude,
             currentLongitude,
             range,
@@ -284,17 +347,35 @@ const searchPosts = async (req, res) => {
         }
 
         // Add title search if query is provided
-        if (query) {
+        if (query || selectedHashtag) {
+            const matchQuery = {
+              $and: []
+            };
+          
+            // If a hashtag is selected, always filter by that hashtag
+            if (selectedHashtag) {
+              matchQuery.$and.push({
+                hashtags: selectedHashtag.toLowerCase().replace(/^#/, '')
+              });
+            }
+          
+            // If there's a query, add the OR search conditions
+            if (query) {
+              matchQuery.$and.push({
+                $or: [
+                  { title: { $regex: query, $options: 'i' } },
+                  { checkpoints: { $regex: query, $options: 'i' } },
+                  { 'location.formatted': { $regex: query, $options: 'i' } },
+                  { hashtags: { $in: [query.toLowerCase().replace(/^#/, '')] } }
+                ]
+              });
+            }
+          
             aggregationPipeline.push({
-                $match: {
-                    $or: [
-                        { title: { $regex: query, $options: 'i' } },
-                        { 'checkpoints': { $regex: query, $options: 'i' } },
-                        { 'location.formatted': { $regex: query, $options: 'i' } }
-                    ]
-                }
+              $match: matchQuery
             });
-        }
+          }
+          
 
         // Add sorting if no geospatial query (geospatial queries handle their own sorting)
         if (!validCoordinates) {
@@ -378,14 +459,17 @@ const searchPosts = async (req, res) => {
                         }
                     },
                     remainingSpots: { 
-                        $subtract: ["$peopleNeeded", { $size: "$groupChat" }] 
+                        $subtract: [
+                            { $toInt: { $ifNull: ["$peopleNeeded", 0] } }, 
+                            { $size: "$groupChat" } 
+                        ] 
                     },
                     remainingMale: {
                         $cond: {
-                            if: { $gt: ["$maleNeeded", null] },
+                            if: { $ne: ["$maleNeeded", null] },
                             then: {
                                 $subtract: [
-                                    "$maleNeeded",
+                                    { $toInt: { $ifNull: ["$maleNeeded", 0] } },
                                     {
                                         $size: {
                                             $filter: {
@@ -402,10 +486,10 @@ const searchPosts = async (req, res) => {
                     },
                     remainingFemale: {
                         $cond: {
-                            if: { $gt: ["$femaleNeeded", null] },
+                            if: { $ne: ["$femaleNeeded", null] },
                             then: {
                                 $subtract: [
-                                    "$femaleNeeded",
+                                    { $toInt: { $ifNull: ["$femaleNeeded", 0] } },
                                     {
                                         $size: {
                                             $filter: {
@@ -476,4 +560,4 @@ const searchPosts = async (req, res) => {
     }
 };
 
-module.exports = { createPost ,requestToJoinPost ,handleRequest ,getAllPosts ,searchPosts };
+module.exports = { createPost ,requestToJoinPost ,handleRequest ,getAllPosts ,searchPosts ,getHashtagSuggestions };

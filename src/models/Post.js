@@ -83,6 +83,12 @@ const PostSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    hashtags: {
+    type: [String],
+    default: [],
+    index: true // for faster search
+    }
+
 }, { timestamps: true });
 
 // Add a 2dsphere index for geospatial queries

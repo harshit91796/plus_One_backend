@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const { registerUser, loginUser } = authController;
+const { registerUser, loginUser , streamGenerateToken } = authController;
 const passport = require('../config/passportConfig');
 const { protect } = require('../middlewares/authMiddleware');
 // const { protect } = require('../middleware/authMiddleware');
@@ -9,6 +9,7 @@ const { protect } = require('../middlewares/authMiddleware');
 
 router.post('/register', registerUser);
 router.post('/login', loginUser);
+router.get('/getStreamToken',protect, streamGenerateToken);
 // router.get('/me', protect, (req, res) => {
 //     res.send(req.user);
 // });

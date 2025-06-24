@@ -26,6 +26,14 @@ const MessageSchema = new mongoose.Schema({
         ref: 'Chat',
         required: true,
     },
+    isReplied: {
+        type: Boolean,
+        default: false,
+    },
+    replyTo: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Message',
+    },
 });
 
 const ChatSchema = new mongoose.Schema({

@@ -6,7 +6,7 @@ const { accessChat, createGroupChat, sendMessage, getMessages, getChats, getChat
 const { protect } = require('../middlewares/authMiddleware');
 const messageRequestController = require('../controllers/messageRequestController');
 
-router.post('/accessChat', protect, accessChat);
+// router.post('/accessChat', protect, accessChat);
 router.post('/group', protect, createGroupChat);
 router.post('/message', protect, sendMessage);
 router.get('/getMessages/:chatId',protect, getMessages);

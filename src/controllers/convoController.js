@@ -60,9 +60,9 @@ const createGroupChat = async (req, res) => {
 };
 
 const sendMessage = async (req, res) => {
-    const { content, chatId , contentType , mediaUrl} = req.body;
+    const { content, chatId , contentType , mediaUrl , isReplied , replyTo} = req.body;
 
-    console.log(content , chatId , contentType , mediaUrl);
+    console.log(content , chatId , contentType , mediaUrl , isReplied , replyTo);
 
     if (!chatId || (!content && !mediaUrl)) {
         return res.status(400).json({ error: 'Please provide content and chat ID' });
@@ -75,6 +75,8 @@ const sendMessage = async (req, res) => {
             chat: chatId,
             contentType: contentType || 'text',
             mediaUrl: mediaUrl || null,
+            isReplied : isReplied || false,
+            replyTo : replyTo || null
         });
 
         const chat = await Chat.findById(chatId).populate('users', 'name email');
@@ -85,6 +87,8 @@ const sendMessage = async (req, res) => {
             content: newMessage.content,
             contentType: newMessage.contentType,
             mediaUrl: newMessage.mediaUrl,
+            isReplied : newMessage.isReplied,
+            replyTo : newMessage.replyTo,
             chat: {
                 _id: chat._id,
                 chatName: chat.chatName,

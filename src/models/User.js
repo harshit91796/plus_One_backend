@@ -97,6 +97,69 @@ const UserSchema = new mongoose.Schema({
         unique: true,
         sparse: true
     },
+    hashtags: {
+    type: [String],
+    default: [],
+    },
+    personalityTraits: {
+        extraversion: { type: Number, default: 0 },
+        openness: { type: Number, default: 0 },
+        conscientiousness: { type: Number, default: 0 },
+        agreeableness: { type: Number, default: 0 },
+        emotionalStability: { type: Number, default: 0 },
+        adaptability: { type: Number, default: 0 },
+        resilience: { type: Number, default: 0 }
+      },
+      password: { type: String, required: true },
+      responses: [{
+        questionId: String,
+        answer: String,
+        responseTime: Number
+      }],
+      assessmentCompleted: { type: Boolean, default: false },
+      assessmentProgress: {
+        type: Number,
+        default: 0
+      },
+      resultData: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
+      },
+
+        // NEW FIELDS FOR PROFILE FEATURES
+    location: {
+        type: String,
+        default: ''
+    },
+    bio: {
+        type: String,
+        default: ''
+    },
+    // Introduction story embedded directly in user model
+    introStory: {
+        profileQuote: {
+            type: String,
+            default: ''
+        },
+        personalDescription: {
+            type: String,
+            default: ''
+        },
+        tags: {
+            type: [String],
+            default: []
+        }
+    },
+    
+    // References to separate collections
+    storyPosts: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'StoryPost'
+    }],
+    photoGallery: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'PhotoGallery'
+    }
 });
 
 // Hash the password before saving the user

@@ -6,7 +6,13 @@ const dotenv = require('dotenv');
 const nodemailer = require('nodemailer');
 const passport = require('passport');
 const twilio = require('twilio');
+const { StreamClient } = require("@stream-io/node-sdk");
 dotenv.config();
+
+
+//stream client 
+
+client = new StreamClient(process.env.STREAM_API, process.env.STREAM_SECRET);
 
 const registerUser = async (req, res) => {
     const { name, email, password,age } = req.body;
@@ -40,8 +46,10 @@ const registerUser = async (req, res) => {
 };
 
 const loginUser = async (req, res) => {
+    console.log("loginUser function called");
     const { email, password } = req.body;
-
+     console.log("Email:", email);
+     console.log("Password:", password);
     try {
         const user = await User.findOne({ email });
         if (!user) {
@@ -52,16 +60,22 @@ const loginUser = async (req, res) => {
         if (!isMatch) {
             return res.status(400).json({ error: 'Invalid credentials' });
         }
-
+        console.log('password match')
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
             expiresIn: '1h',
         });
+        
+        //generate stream token
 
-        res.status(200).json({data : user , token});
+        const videoStreamToken = await streamGenerateToken(user);
+
+        res.status(200).json({data : user , token , videoStreamToken});
     } catch (err) {
         res.status(400).json({ error: 'User login failed' });
     }
 };
+
+
 
 const forgotPassword = async (req, res) => {
     const { email } = req.body;
@@ -215,6 +229,40 @@ const generateToken = (user) => {
     });
 };
 
+const streamGenerateToken = async (user) => {
+    console.log("streamGenerateToken function called");
+    // const user = await User.findOne({ _id: req.user._id });
+    // console.log("User:", user);
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+
+    const newUser = {
+        id: user._id,
+        role: 'user',
+        custom: {
+            color: 'red',
+        },
+        name: user.name ,
+        image: user.profilePic,
+     };
+    
+    await client.upsertUsers([newUser]);
+
+
+   // validity is optional (by default the token is valid for an hour)
+    const validity = 60 * 60;
+    const token = await client.generateUserToken({ user_id: user._id, validity_in_seconds: validity });
+
+    console.log("Token:", token);
+
+    // res.status(200).json({ "streamToken" : token });
+    return token
+
+};
+
+
+
 module.exports = { 
     registerUser,
     loginUser,
@@ -224,5 +272,6 @@ module.exports = {
     sendOtp,
     verifyOtp,
     updateUser,
-    generateToken
+    generateToken,
+    streamGenerateToken
 };
